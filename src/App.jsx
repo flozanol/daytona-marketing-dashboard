@@ -32,7 +32,7 @@ function App() {
     const [activeSection, setActiveSection] = useState(SECTIONS.DASHBOARD)
     const [metrics, setMetrics] = useState([])
     const [loading, setLoading] = useState(true)
-    const [filters, setFilters] = useState({ division: 'Todos', mes: 'Todos' })
+    const [filters, setFilters] = useState({ division: 'Todos', mes: 'Todos', agencia: 'Todos' })
     const [submitting, setSubmitting] = useState(false)
 
     // --- Data Fetching ---
@@ -87,11 +87,17 @@ function App() {
     }
 
     // --- BI Logic ---
+    const agencies = useMemo(() => {
+        const uniqueAgencies = [...new Set(metrics.map(m => m.agencia_nombre))].filter(Boolean).sort()
+        return ['Todos', ...uniqueAgencies]
+    }, [metrics])
+
     const filteredMetrics = useMemo(() => {
         return metrics.filter(m => {
             const matchDivision = filters.division === 'Todos' || m.division === filters.division
             const matchMes = filters.mes === 'Todos' || m.mes === filters.mes
-            return matchDivision && matchMes
+            const matchAgencia = filters.agencia === 'Todos' || m.agencia_nombre === filters.agencia
+            return matchDivision && matchMes && matchAgencia
         })
     }, [metrics, filters])
 
@@ -163,6 +169,17 @@ function App() {
                             onChange={(e) => setFilters(prev => ({ ...prev, division: e.target.value }))}
                         >
                             {DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
+                    </div>
+                    <div className="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-lg border border-white/5">
+                        <Filter size={14} className="text-slate-500" />
+                        <select
+                            className="bg-transparent text-sm outline-none border-none cursor-pointer"
+                            value={filters.agencia}
+                            onChange={(e) => setFilters(prev => ({ ...prev, agencia: e.target.value }))}
+                        >
+                            <option value="Todos">Agencia: Todas</option>
+                            {agencies.filter(a => a !== 'Todos').map(a => <option key={a} value={a}>{a}</option>)}
                         </select>
                     </div>
                     <div className="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-lg border border-white/5">
@@ -427,7 +444,8 @@ function EntrySection({ onSaved }) {
             if (error) throw error
             onSaved()
         } catch (err) {
-            alert('Error guardando datos')
+            console.error('Error saving metrics:', err)
+            alert(`Error guardando datos: ${err.message || 'Error desconocido'}`)
         } finally {
             setSubmitting(false)
         }
