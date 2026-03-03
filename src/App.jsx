@@ -130,7 +130,12 @@ function App() {
 
         const roi = totalInv > 0 ? (totalUtilidad / totalInv) * 100 : 0
 
-        return { totalInv, totalLeads, totalVentas, totalCitas, cpl, conversion, roi }
+        // Social Metrics (Take sum for now, or avg if preferred)
+        const totalReviews = filteredMetrics.reduce((acc, m) => acc + (m.google_reviews || 0), 0)
+        const totalFb = filteredMetrics.reduce((acc, m) => acc + (m.fb_followers || 0), 0)
+        const totalIg = filteredMetrics.reduce((acc, m) => acc + (m.ig_followers || 0), 0)
+
+        return { totalInv, totalLeads, totalVentas, totalCitas, cpl, conversion, roi, totalReviews, totalFb, totalIg }
     }, [filteredMetrics])
 
     // --- Components ---
@@ -258,6 +263,37 @@ function App() {
                                 />
                             </div>
 
+                            {/* Community Stats */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="stat-card flex items-center gap-4 py-4">
+                                    <div className="w-12 h-12 bg-blue-600/20 rounded-xl flex items-center justify-center text-blue-500">
+                                        <Facebook size={24} />
+                                    </div>
+                                    <div>
+                                        <div className="text-2xl font-bold">{formatNumber(stats?.totalFb || 0)}</div>
+                                        <div className="text-xs text-slate-500 uppercase font-bold tracking-widest">Fans Facebook</div>
+                                    </div>
+                                </div>
+                                <div className="stat-card flex items-center gap-4 py-4">
+                                    <div className="w-12 h-12 bg-pink-600/20 rounded-xl flex items-center justify-center text-pink-500">
+                                        <Instagram size={24} />
+                                    </div>
+                                    <div>
+                                        <div className="text-2xl font-bold">{formatNumber(stats?.totalIg || 0)}</div>
+                                        <div className="text-xs text-slate-500 uppercase font-bold tracking-widest">Followers Instagram</div>
+                                    </div>
+                                </div>
+                                <div className="stat-card flex items-center gap-4 py-4">
+                                    <div className="w-12 h-12 bg-amber-500/20 rounded-xl flex items-center justify-center text-amber-500">
+                                        <Star size={24} fill="currentColor" />
+                                    </div>
+                                    <div>
+                                        <div className="text-2xl font-bold">{formatNumber(stats?.totalReviews || 0)}</div>
+                                        <div className="text-xs text-slate-500 uppercase font-bold tracking-widest">Reseñas Google</div>
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* Charts Grid */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                 {/* Funnel Chart */}
@@ -358,12 +394,15 @@ function RankingSection({ metrics }) {
         const agencies = {}
         metrics.forEach(m => {
             if (!agencies[m.agencia_nombre]) {
-                agencies[m.agencia_nombre] = { name: m.agencia_nombre, leads: 0, ventas: 0, inv: 0, rating: 0, count: 0 }
+                agencies[m.agencia_nombre] = { name: m.agencia_nombre, leads: 0, ventas: 0, inv: 0, rating: 0, count: 0, reviews: 0, fb: 0, ig: 0 }
             }
             agencies[m.agencia_nombre].leads += m.leads_totales || 0
             agencies[m.agencia_nombre].ventas += m.ventas_cerradas || 0
             agencies[m.agencia_nombre].inv += (m.inv_meta + m.inv_google + m.inv_otros) || 0
             agencies[m.agencia_nombre].rating += m.google_rating || 0
+            agencies[m.agencia_nombre].reviews += m.google_reviews || 0
+            agencies[m.agencia_nombre].fb += m.fb_followers || 0
+            agencies[m.agencia_nombre].ig += m.ig_followers || 0
             agencies[m.agencia_nombre].count += 1
         })
 
@@ -372,7 +411,10 @@ function RankingSection({ metrics }) {
                 ...a,
                 cpl: a.leads > 0 ? a.inv / a.leads : 0,
                 tasa: a.leads > 0 ? (a.ventas / a.leads) * 100 : 0,
-                avgRating: a.count > 0 ? a.rating / a.count : 0
+                avgRating: a.count > 0 ? a.rating / a.count : 0,
+                avgReviews: a.count > 0 ? a.reviews / a.count : 0,
+                avgFb: a.count > 0 ? a.fb / a.count : 0,
+                avgIg: a.count > 0 ? a.ig / a.count : 0
             }))
             .sort((a, b) => b.ventas - a.ventas)
     }, [metrics])
@@ -394,6 +436,8 @@ function RankingSection({ metrics }) {
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Posición</th>
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Agencia</th>
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Ventas Cerradas</th>
+                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center"><Facebook size={14} className="inline mr-1" /> FB</th>
+                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center"><Instagram size={14} className="inline mr-1" /> IG</th>
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Tasa de Conversión</th>
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">CPL</th>
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Google Rating</th>
@@ -416,12 +460,15 @@ function RankingSection({ metrics }) {
                                         </div>
                                     </div>
                                 </td>
+                                <td className="px-6 py-4 text-center text-sm font-medium text-slate-400">{formatNumber(agency.avgFb)}</td>
+                                <td className="px-6 py-4 text-center text-sm font-medium text-slate-400">{formatNumber(agency.avgIg)}</td>
                                 <td className="px-6 py-4 text-success font-semibold">{formatPercent(agency.tasa)}</td>
                                 <td className="px-6 py-4 text-slate-400">{formatCurrency(agency.cpl)}</td>
                                 <td className="px-6 py-4">
                                     <div className="flex items-center gap-1 text-accent font-bold">
                                         <Star size={14} fill="currentColor" />
                                         {agency.avgRating.toFixed(1)}
+                                        <span className="text-[10px] text-slate-500 ml-1">({formatNumber(agency.avgReviews)})</span>
                                     </div>
                                 </td>
                             </tr>
