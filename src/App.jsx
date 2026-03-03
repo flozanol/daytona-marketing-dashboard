@@ -32,7 +32,7 @@ function App() {
     const [activeSection, setActiveSection] = useState(SECTIONS.DASHBOARD)
     const [metrics, setMetrics] = useState([])
     const [loading, setLoading] = useState(true)
-    const [filters, setFilters] = useState({ division: 'Todos', mes: 'Todos', agencia: 'Todos' })
+    const [filters, setFilters] = useState({ division: 'Todos', mes: 'Todos', agencia: 'Todos', anio: 'Todos' })
     const [submitting, setSubmitting] = useState(false)
 
     // --- Data Fetching ---
@@ -92,12 +92,18 @@ function App() {
         return ['Todos', ...uniqueAgencies]
     }, [metrics])
 
+    const years = useMemo(() => {
+        const uniqueYears = [...new Set(metrics.map(m => m.anio))].filter(Boolean).sort((a, b) => b - a)
+        return ['Todos', ...uniqueYears]
+    }, [metrics])
+
     const filteredMetrics = useMemo(() => {
         return metrics.filter(m => {
             const matchDivision = filters.division === 'Todos' || m.division === filters.division
             const matchMes = filters.mes === 'Todos' || m.mes === filters.mes
             const matchAgencia = filters.agencia === 'Todos' || m.agencia_nombre === filters.agencia
-            return matchDivision && matchMes && matchAgencia
+            const matchAnio = filters.anio === 'Todos' || m.anio === parseInt(filters.anio)
+            return matchDivision && matchMes && matchAgencia && matchAnio
         })
     }, [metrics, filters])
 
@@ -180,6 +186,16 @@ function App() {
                         >
                             <option value="Todos">Agencia: Todas</option>
                             {agencies.filter(a => a !== 'Todos').map(a => <option key={a} value={a}>{a}</option>)}
+                        </select>
+                    </div>
+                    <div className="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-lg border border-white/5">
+                        <select
+                            className="bg-transparent text-sm outline-none border-none cursor-pointer"
+                            value={filters.anio}
+                            onChange={(e) => setFilters(prev => ({ ...prev, anio: e.target.value }))}
+                        >
+                            <option value="Todos">Año: Todos</option>
+                            {years.filter(y => y !== 'Todos').map(y => <option key={y} value={y}>{y}</option>)}
                         </select>
                     </div>
                     <div className="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-lg border border-white/5">
