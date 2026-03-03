@@ -36,7 +36,7 @@ function App() {
     const [filters, setFilters] = useState({ division: 'Todos', mes: 'Todos', agencia: 'Todos', anio: 'Todos' })
     const [submitting, setSubmitting] = useState(false)
     const [selectedMatrix, setSelectedMatrix] = useState(null)
-    const [viewMode, setViewMode] = useState('list') // 'list' or 'detail'
+    const [viewMode, setViewMode] = useState('detail') // Default to detail for easy upload
 
     // --- Data Fetching ---
     useEffect(() => {
@@ -381,10 +381,12 @@ function App() {
                             ) : (
                                 <ExcelMatrixGrid
                                     initialFilters={selectedMatrix}
-                                    onBack={() => setViewMode('list')}
+                                    onBack={selectedMatrix ? () => { setViewMode('list'); setSelectedMatrix(null); } : null}
+                                    onShowHistory={() => setViewMode('list')}
                                     onSaved={() => {
                                         fetchMetrics();
-                                        setViewMode('list');
+                                        setViewMode('detail');
+                                        setSelectedMatrix(null);
                                         setActiveSection(SECTIONS.DASHBOARD);
                                     }}
                                 />

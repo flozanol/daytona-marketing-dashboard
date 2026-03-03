@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Save, AlertCircle, Info, CheckCircle2, ChevronRight } from 'lucide-react'
+import { Save, AlertCircle, Info, CheckCircle2, ChevronRight, FileSpreadsheet } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { supabase } from '../lib/supabase'
 
@@ -11,7 +11,7 @@ const SOURCES = [
 ]
 const ROWS = ['Leads', 'Contactados', 'Citas concretadas', 'Ventas', 'Inversión', 'Utilidad generada']
 
-const ExcelMatrixGrid = ({ onSaved, initialFilters, onBack }) => {
+const ExcelMatrixGrid = ({ onSaved, initialFilters, onBack, onShowHistory }) => {
     const [mes, setMes] = useState(initialFilters?.mes || 'Marzo')
     const [anio, setAnio] = useState(initialFilters?.anio || new Date().getFullYear())
     const [agencia, setAgencia] = useState(initialFilters?.agencia_nombre || 'Daytona Polanco')
@@ -171,6 +171,15 @@ const ExcelMatrixGrid = ({ onSaved, initialFilters, onBack }) => {
                     )}
                     <h2 className="text-2xl font-bold">Carga Detallada (Matriz Excel)</h2>
                 </div>
+                {onShowHistory && (
+                    <button
+                        onClick={onShowHistory}
+                        className="btn bg-white/5 hover:bg-white/10 text-slate-300 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2"
+                    >
+                        <FileSpreadsheet size={16} />
+                        Ver Historial de Matrices
+                    </button>
+                )}
             </div>
 
             <div className="glass p-6 rounded-2xl flex flex-wrap gap-6 items-end">
