@@ -505,6 +505,15 @@ function EntrySection({ onSaved }) {
                         </div>
                     </div>
 
+                    <div className="p-6 bg-slate-900/50 rounded-2xl border border-white/5">
+                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">Comunidad y Reseñas</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <FormField label="Reseñas Google" type="number" value={form.google_reviews} onChange={v => setForm({ ...form, google_reviews: parseInt(v) })} />
+                            <FormField label="Followers Facebook" type="number" value={form.fb_followers} onChange={v => setForm({ ...form, fb_followers: parseInt(v) })} />
+                            <FormField label="Followers Instagram" type="number" value={form.ig_followers} onChange={v => setForm({ ...form, ig_followers: parseInt(v) })} />
+                        </div>
+                    </div>
+
                     <div className="flex justify-end gap-4">
                         <button type="submit" disabled={submitting} className="btn-primary px-8 py-3 rounded-xl font-bold text-lg disabled:opacity-50">
                             {submitting ? 'Sincronizando...' : 'Publicar Reporte Mensual'}

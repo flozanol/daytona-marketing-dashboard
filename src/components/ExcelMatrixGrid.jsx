@@ -13,15 +13,16 @@ const ROWS = ['Leads', 'Contactados', 'Citas concretadas', 'Ventas', 'Inversión
 
 const ExcelMatrixGrid = ({ onSaved }) => {
     const [mes, setMes] = useState('Marzo')
-    const [anio] = useState(2024)
+    const [anio, setAnio] = useState(new Date().getFullYear())
     const [agencia, setAgencia] = useState('Daytona Polanco')
     const [division, setDivision] = useState('Autos')
     const [loading, setLoading] = useState(false)
+    const [fetching, setFetching] = useState(false)
     const [error, setError] = useState(null)
     const [success, setSuccess] = useState(false)
 
     // Data structure: [segment][source][row]
-    const [data, setData] = useState(() => {
+    const getInitialData = () => {
         const initial = {}
         SEGMENTS.forEach(seg => {
             initial[seg] = {}
@@ -37,7 +38,51 @@ const ExcelMatrixGrid = ({ onSaved }) => {
             })
         })
         return initial
-    })
+    }
+
+    const [data, setData] = useState(getInitialData)
+
+    // --- Data Fetching ---
+    React.useEffect(() => {
+        fetchExistingData()
+    }, [agencia, division, mes, anio])
+
+    async function fetchExistingData() {
+        if (!agencia || !division || !mes || !anio) return
+
+        try {
+            setFetching(true)
+            const { data: existing, error: fetchError } = await supabase
+                .from('marketing_source_metrics')
+                .select('*')
+                .eq('agencia_nombre', agencia)
+                .eq('division', division)
+                .eq('mes', mes)
+                .eq('anio', anio)
+
+            const newData = getInitialData()
+
+            if (existing && existing.length > 0) {
+                existing.forEach(row => {
+                    if (newData[row.segmento] && newData[row.segmento][row.fuente]) {
+                        newData[row.segmento][row.fuente] = {
+                            Leads: row.leads || 0,
+                            Contactados: row.contactados || 0,
+                            'Citas concretadas': row.citas_concretadas || 0,
+                            Ventas: row.ventas || 0,
+                            Inversión: row.inversion || 0,
+                            'Utilidad generada': row.utilidad || 0
+                        }
+                    }
+                })
+            }
+            setData(newData)
+        } catch (err) {
+            console.error('Error fetching matrix data:', err)
+        } finally {
+            setFetching(false)
+        }
+    }
 
     const handleChange = (seg, src, row, val) => {
         setData(prev => ({
@@ -58,6 +103,15 @@ const ExcelMatrixGrid = ({ onSaved }) => {
         setSuccess(false)
 
         try {
+            // First, delete existing data for this combination to avoid duplicates
+            await supabase
+                .from('marketing_source_metrics')
+                .delete()
+                .eq('agencia_nombre', agencia)
+                .eq('division', division)
+                .eq('mes', mes)
+                .eq('anio', anio)
+
             const rowsToInsert = []
             SEGMENTS.forEach(seg => {
                 SOURCES.forEach(src => {
@@ -83,22 +137,19 @@ const ExcelMatrixGrid = ({ onSaved }) => {
             })
 
             if (rowsToInsert.length === 0) {
-                throw new Error('No hay datos para guardar')
+                // If it was already cleared, that's fine too
+                setSuccess(true)
+                return
             }
 
             const { error: dbError } = await supabase
                 .from('marketing_source_metrics')
                 .insert(rowsToInsert)
 
-            if (dbError) {
-                if (dbError.code === 'PGRST204' || dbError.message.includes('not found')) {
-                    throw new Error('⚠️ TABLA NO ENCONTRADA: Por favor, ejecuta el script SQL en Supabase para habilitar esta función.')
-                }
-                throw dbError
-            }
+            if (dbError) throw dbError
 
             setSuccess(true)
-            setTimeout(() => onSaved(), 2000)
+            if (onSaved) setTimeout(() => onSaved(), 2000)
         } catch (err) {
             setError(err.message)
         } finally {
@@ -130,6 +181,18 @@ const ExcelMatrixGrid = ({ onSaved }) => {
                     </select>
                 </div>
                 <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase">Año</label>
+                    <select
+                        className="input-field py-2"
+                        value={anio}
+                        onChange={e => setAnio(parseInt(e.target.value))}
+                    >
+                        {[2023, 2024, 2025, 2026].map(y => (
+                            <option key={y} value={y}>{y}</option>
+                        ))}
+                    </select>
+                </div>
+                <div className="flex flex-col gap-2">
                     <label className="text-xs font-bold text-slate-500 uppercase">Mes</label>
                     <select
                         className="input-field py-2"
@@ -141,6 +204,11 @@ const ExcelMatrixGrid = ({ onSaved }) => {
                         ))}
                     </select>
                 </div>
+                {fetching && (
+                    <div className="mb-2 text-primary animate-pulse text-xs font-bold uppercase tracking-widest">
+                        Cargando datos...
+                    </div>
+                )}
             </div>
 
             <div className="overflow-x-auto glass rounded-2xl border-white/5">
