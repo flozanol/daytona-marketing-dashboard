@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import ExcelMatrixGrid from './components/ExcelMatrixGrid'
+import MatrixBrowser from './components/MatrixBrowser'
 
 // --- Utility Functions ---
 const formatCurrency = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(val)
@@ -34,6 +35,8 @@ function App() {
     const [loading, setLoading] = useState(true)
     const [filters, setFilters] = useState({ division: 'Todos', mes: 'Todos', agencia: 'Todos', anio: 'Todos' })
     const [submitting, setSubmitting] = useState(false)
+    const [selectedMatrix, setSelectedMatrix] = useState(null)
+    const [viewMode, setViewMode] = useState('list') // 'list' or 'detail'
 
     // --- Data Fetching ---
     useEffect(() => {
@@ -368,7 +371,24 @@ function App() {
                     {activeSection === SECTIONS.ENTRY && <EntrySection onSaved={() => { fetchMetrics(); setActiveSection(SECTIONS.DASHBOARD); }} />}
                     {activeSection === SECTIONS.GRANULAR && (
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                            <ExcelMatrixGrid onSaved={() => { fetchMetrics(); setActiveSection(SECTIONS.DASHBOARD); }} />
+                            {viewMode === 'list' ? (
+                                <MatrixBrowser
+                                    onViewDetail={(matrix) => {
+                                        setSelectedMatrix(matrix)
+                                        setViewMode('detail')
+                                    }}
+                                />
+                            ) : (
+                                <ExcelMatrixGrid
+                                    initialFilters={selectedMatrix}
+                                    onBack={() => setViewMode('list')}
+                                    onSaved={() => {
+                                        fetchMetrics();
+                                        setViewMode('list');
+                                        setActiveSection(SECTIONS.DASHBOARD);
+                                    }}
+                                />
+                            )}
                         </motion.div>
                     )}
                 </AnimatePresence>

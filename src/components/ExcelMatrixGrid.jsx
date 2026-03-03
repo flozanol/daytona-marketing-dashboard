@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Save, AlertCircle, Info, CheckCircle2 } from 'lucide-react'
+import { Save, AlertCircle, Info, CheckCircle2, ChevronRight } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { supabase } from '../lib/supabase'
 
@@ -11,11 +11,11 @@ const SOURCES = [
 ]
 const ROWS = ['Leads', 'Contactados', 'Citas concretadas', 'Ventas', 'Inversión', 'Utilidad generada']
 
-const ExcelMatrixGrid = ({ onSaved }) => {
-    const [mes, setMes] = useState('Marzo')
-    const [anio, setAnio] = useState(new Date().getFullYear())
-    const [agencia, setAgencia] = useState('Daytona Polanco')
-    const [division, setDivision] = useState('Autos')
+const ExcelMatrixGrid = ({ onSaved, initialFilters, onBack }) => {
+    const [mes, setMes] = useState(initialFilters?.mes || 'Marzo')
+    const [anio, setAnio] = useState(initialFilters?.anio || new Date().getFullYear())
+    const [agencia, setAgencia] = useState(initialFilters?.agencia_nombre || 'Daytona Polanco')
+    const [division, setDivision] = useState(initialFilters?.division || 'Autos')
     const [loading, setLoading] = useState(false)
     const [fetching, setFetching] = useState(false)
     const [error, setError] = useState(null)
@@ -159,6 +159,20 @@ const ExcelMatrixGrid = ({ onSaved }) => {
 
     return (
         <div className="space-y-6">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    {onBack && (
+                        <button
+                            onClick={onBack}
+                            className="p-2 hover:bg-white/5 rounded-full transition-colors text-slate-400 hover:text-white"
+                        >
+                            <ChevronRight className="rotate-180" size={24} />
+                        </button>
+                    )}
+                    <h2 className="text-2xl font-bold">Carga Detallada (Matriz Excel)</h2>
+                </div>
+            </div>
+
             <div className="glass p-6 rounded-2xl flex flex-wrap gap-6 items-end">
                 <div className="flex flex-col gap-2">
                     <label className="text-xs font-bold text-slate-500 uppercase">Agencia</label>
