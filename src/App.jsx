@@ -134,8 +134,9 @@ function App() {
         const totalReviews = filteredMetrics.reduce((acc, m) => acc + (m.google_reviews || 0), 0)
         const totalFb = filteredMetrics.reduce((acc, m) => acc + (m.fb_followers || 0), 0)
         const totalIg = filteredMetrics.reduce((acc, m) => acc + (m.ig_followers || 0), 0)
+        const totalTiktok = filteredMetrics.reduce((acc, m) => acc + (m.tiktok_followers || 0), 0)
 
-        return { totalInv, totalLeads, totalVentas, totalCitas, cpl, conversion, roi, totalReviews, totalFb, totalIg }
+        return { totalInv, totalLeads, totalVentas, totalCitas, cpl, conversion, roi, totalReviews, totalFb, totalIg, totalTiktok }
     }, [filteredMetrics])
 
     // --- Components ---
@@ -292,6 +293,17 @@ function App() {
                                         <div className="text-xs text-slate-500 uppercase font-bold tracking-widest">Reseñas Google</div>
                                     </div>
                                 </div>
+                                <div className="stat-card flex items-center gap-4 py-4">
+                                    <div className="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center text-white">
+                                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                                            <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1.04-.1z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <div className="text-2xl font-bold">{formatNumber(stats?.totalTiktok || 0)}</div>
+                                        <div className="text-xs text-slate-500 uppercase font-bold tracking-widest">Followers TikTok</div>
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Charts Grid */}
@@ -403,6 +415,7 @@ function RankingSection({ metrics }) {
             agencies[m.agencia_nombre].reviews += m.google_reviews || 0
             agencies[m.agencia_nombre].fb += m.fb_followers || 0
             agencies[m.agencia_nombre].ig += m.ig_followers || 0
+            agencies[m.agencia_nombre].tiktok += m.tiktok_followers || 0
             agencies[m.agencia_nombre].count += 1
         })
 
@@ -414,7 +427,8 @@ function RankingSection({ metrics }) {
                 avgRating: a.count > 0 ? a.rating / a.count : 0,
                 avgReviews: a.count > 0 ? a.reviews / a.count : 0,
                 avgFb: a.count > 0 ? a.fb / a.count : 0,
-                avgIg: a.count > 0 ? a.ig / a.count : 0
+                avgIg: a.count > 0 ? a.ig / a.count : 0,
+                avgTiktok: a.count > 0 ? a.tiktok / a.count : 0
             }))
             .sort((a, b) => b.ventas - a.ventas)
     }, [metrics])
@@ -438,6 +452,12 @@ function RankingSection({ metrics }) {
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Ventas Cerradas</th>
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center"><Facebook size={14} className="inline mr-1" /> FB</th>
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center"><Instagram size={14} className="inline mr-1" /> IG</th>
+                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center">
+                                <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 inline mr-1">
+                                    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1.04-.1z" />
+                                </svg>
+                                TK
+                            </th>
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Tasa de Conversión</th>
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">CPL</th>
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Google Rating</th>
@@ -462,6 +482,7 @@ function RankingSection({ metrics }) {
                                 </td>
                                 <td className="px-6 py-4 text-center text-sm font-medium text-slate-400">{formatNumber(agency.avgFb)}</td>
                                 <td className="px-6 py-4 text-center text-sm font-medium text-slate-400">{formatNumber(agency.avgIg)}</td>
+                                <td className="px-6 py-4 text-center text-sm font-medium text-slate-400">{formatNumber(agency.avgTiktok)}</td>
                                 <td className="px-6 py-4 text-success font-semibold">{formatPercent(agency.tasa)}</td>
                                 <td className="px-6 py-4 text-slate-400">{formatCurrency(agency.cpl)}</td>
                                 <td className="px-6 py-4">
@@ -496,7 +517,8 @@ function EntrySection({ onSaved }) {
         google_rating: 4.5,
         google_reviews: 0,
         fb_followers: 0,
-        ig_followers: 0
+        ig_followers: 0,
+        tiktok_followers: 0
     })
 
     const handleSubmit = async (e) => {
@@ -558,6 +580,7 @@ function EntrySection({ onSaved }) {
                             <FormField label="Reseñas Google" type="number" value={form.google_reviews} onChange={v => setForm({ ...form, google_reviews: parseInt(v) })} />
                             <FormField label="Followers Facebook" type="number" value={form.fb_followers} onChange={v => setForm({ ...form, fb_followers: parseInt(v) })} />
                             <FormField label="Followers Instagram" type="number" value={form.ig_followers} onChange={v => setForm({ ...form, ig_followers: parseInt(v) })} />
+                            <FormField label="Followers TikTok" type="number" value={form.tiktok_followers} onChange={v => setForm({ ...form, tiktok_followers: parseInt(v) })} />
                         </div>
                     </div>
 
