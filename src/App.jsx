@@ -133,11 +133,25 @@ function App() {
 
         const roi = totalInv > 0 ? (totalUtilidad / totalInv) * 100 : 0
 
-        // Social Metrics (Take sum for now, or avg if preferred)
-        const totalReviews = filteredMetrics.reduce((acc, m) => acc + (m.google_reviews || 0), 0)
-        const totalFb = filteredMetrics.reduce((acc, m) => acc + (m.fb_followers || 0), 0)
-        const totalIg = filteredMetrics.reduce((acc, m) => acc + (m.ig_followers || 0), 0)
-        const totalTiktok = filteredMetrics.reduce((acc, m) => acc + (m.tiktok_followers || 0), 0)
+        // Social Metrics (Latest snapshot for each agency in the current filter)
+        const agencyLatest = {}
+        filteredMetrics.forEach(m => {
+            const timeVal = (m.anio || 0) * 12 + MONTHS.indexOf(m.mes || '')
+            if (!agencyLatest[m.agencia_nombre] || timeVal > agencyLatest[m.agencia_nombre].time) {
+                agencyLatest[m.agencia_nombre] = {
+                    time: timeVal,
+                    reviews: m.google_reviews || 0,
+                    fb: m.fb_followers || 0,
+                    ig: m.ig_followers || 0,
+                    tiktok: m.tiktok_followers || 0
+                }
+            }
+        })
+
+        const totalReviews = Object.values(agencyLatest).reduce((acc, a) => acc + a.reviews, 0)
+        const totalFb = Object.values(agencyLatest).reduce((acc, a) => acc + a.fb, 0)
+        const totalIg = Object.values(agencyLatest).reduce((acc, a) => acc + a.ig, 0)
+        const totalTiktok = Object.values(agencyLatest).reduce((acc, a) => acc + a.tiktok, 0)
 
         return { totalInv, totalLeads, totalVentas, totalCitas, cpl, conversion, roi, totalReviews, totalFb, totalIg, totalTiktok }
     }, [filteredMetrics])
@@ -367,7 +381,7 @@ function App() {
                         </motion.div>
                     )}
 
-                    {activeSection === SECTIONS.RANKING && <RankingSection metrics={metrics} />}
+                    {activeSection === SECTIONS.RANKING && <RankingSection metrics={filteredMetrics} filters={filters} allMetrics={metrics} />}
                     {activeSection === SECTIONS.ENTRY && <EntrySection onSaved={() => { fetchMetrics(); setActiveSection(SECTIONS.DASHBOARD); }} />}
                     {activeSection === SECTIONS.GRANULAR && (
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -422,49 +436,90 @@ function StatCard({ label, value, trend, positive, icon: Icon, desc }) {
     )
 }
 
-function RankingSection({ metrics }) {
+function RankingSection({ metrics, filters, allMetrics }) {
     const ranking = useMemo(() => {
         // Group by agency
         const agencies = {}
         metrics.forEach(m => {
             if (!agencies[m.agencia_nombre]) {
-                agencies[m.agencia_nombre] = { name: m.agencia_nombre, leads: 0, ventas: 0, inv: 0, rating: 0, count: 0, reviews: 0, fb: 0, ig: 0 }
+                agencies[m.agencia_nombre] = {
+                    name: m.agencia_nombre,
+                    leads: 0,
+                    ventas: 0,
+                    inv: 0,
+                    rating: 0,
+                    reviews: 0,
+                    fb: 0,
+                    ig: 0,
+                    tiktok: 0,
+                    latestTime: -1
+                }
             }
-            agencies[m.agencia_nombre].leads += m.leads_totales || 0
-            agencies[m.agencia_nombre].ventas += m.ventas_cerradas || 0
-            agencies[m.agencia_nombre].inv += (m.inv_meta + m.inv_google + m.inv_otros) || 0
-            agencies[m.agencia_nombre].rating += m.google_rating || 0
-            agencies[m.agencia_nombre].reviews += m.google_reviews || 0
-            agencies[m.agencia_nombre].fb += m.fb_followers || 0
-            agencies[m.agencia_nombre].ig += m.ig_followers || 0
-            agencies[m.agencia_nombre].tiktok += m.tiktok_followers || 0
-            agencies[m.agencia_nombre].count += 1
+            const a = agencies[m.agencia_nombre]
+            a.leads += m.leads_totales || 0
+            a.ventas += m.ventas_cerradas || 0
+            a.inv += (m.inv_meta + m.inv_google + m.inv_otros) || 0
+
+            // Snapshot metrics: take the most recent month's data
+            const timeVal = (m.anio || 0) * 12 + MONTHS.indexOf(m.mes || '')
+            if (timeVal > a.latestTime) {
+                a.latestTime = timeVal
+                a.rating = m.google_rating || 0
+                a.reviews = m.google_reviews || 0
+                a.fb = m.fb_followers || 0
+                a.ig = m.ig_followers || 0
+                a.tiktok = m.tiktok_followers || 0
+            }
         })
 
         return Object.values(agencies)
             .map(a => ({
                 ...a,
                 cpl: a.leads > 0 ? a.inv / a.leads : 0,
-                tasa: a.leads > 0 ? (a.ventas / a.leads) * 100 : 0,
-                avgRating: a.count > 0 ? a.rating / a.count : 0,
-                avgReviews: a.count > 0 ? a.reviews / a.count : 0,
-                avgFb: a.count > 0 ? a.fb / a.count : 0,
-                avgIg: a.count > 0 ? a.ig / a.count : 0,
-                avgTiktok: a.count > 0 ? a.tiktok / a.count : 0
+                tasa: a.leads > 0 ? (a.ventas / a.leads) * 100 : 0
             }))
             .sort((a, b) => b.ventas - a.ventas)
     }, [metrics])
 
+    // Data for the monthly breakdown table (Sales per Agency per Month)
+    const monthlySales = useMemo(() => {
+        // Re-calculate for the filtered year (or all if year is Todos)
+        const yearMetrics = allMetrics.filter(m => filters.anio === 'Todos' || m.anio === parseInt(filters.anio))
+        const data = {}
+        const uniqueAgencies = [...new Set(yearMetrics.map(m => m.agencia_nombre))].filter(Boolean).sort()
+
+        uniqueAgencies.forEach(agn => {
+            data[agn] = { name: agn, months: Array(12).fill(0), total: 0 }
+            yearMetrics.filter(m => m.agencia_nombre === agn).forEach(m => {
+                const mIdx = MONTHS.indexOf(m.mes)
+                if (mIdx !== -1) {
+                    data[agn].months[mIdx] += (m.ventas_cerradas || 0)
+                    data[agn].total += (m.ventas_cerradas || 0)
+                }
+            })
+        })
+
+        return Object.values(data).sort((a, b) => b.total - a.total)
+    }, [allMetrics, filters.anio])
+
     return (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center gap-4 mb-2">
-                <Trophy className="text-accent" size={32} />
-                <div>
-                    <h2 className="text-2xl">Ranking de Rendimiento</h2>
-                    <p className="text-slate-500">Comparativa histórica de agencias y su eficiencia publicitaria.</p>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <Trophy className="text-accent" size={32} />
+                    <div>
+                        <h2 className="text-2xl">Ranking de Rendimiento</h2>
+                        <p className="text-slate-500">
+                            {filters.mes === 'Todos' ? `Acumulado ${filters.anio === 'Todos' ? 'Histórico' : filters.anio}` : `Vista de ${filters.mes} ${filters.anio}`}
+                        </p>
+                    </div>
+                </div>
+                <div className="px-4 py-2 bg-accent/10 border border-accent/20 rounded-xl">
+                    <span className="text-accent font-bold text-sm">Rating y Redes: Dato más reciente</span>
                 </div>
             </div>
 
+            {/* Main Ranking Table */}
             <div className="glass rounded-2xl overflow-hidden">
                 <table className="w-full text-left">
                     <thead className="bg-slate-900/50">
@@ -474,12 +529,7 @@ function RankingSection({ metrics }) {
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Ventas Cerradas</th>
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center"><Facebook size={14} className="inline mr-1" /> FB</th>
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center"><Instagram size={14} className="inline mr-1" /> IG</th>
-                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center">
-                                <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 inline mr-1">
-                                    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1.04-.1z" />
-                                </svg>
-                                TK
-                            </th>
+                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center">TK</th>
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Tasa de Conversión</th>
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">CPL</th>
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Google Rating</th>
@@ -498,26 +548,60 @@ function RankingSection({ metrics }) {
                                     <div className="flex items-center gap-2">
                                         <span className="text-lg font-bold">{agency.ventas}</span>
                                         <div className="w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                                            <div className="h-full bg-primary" style={{ width: `${(agency.ventas / ranking[0].ventas) * 100}%` }} />
+                                            <div className="h-full bg-primary" style={{ width: `${ranking[0].ventas > 0 ? (agency.ventas / ranking[0].ventas) * 100 : 0}%` }} />
                                         </div>
                                     </div>
                                 </td>
-                                <td className="px-6 py-4 text-center text-sm font-medium text-slate-400">{formatNumber(agency.avgFb)}</td>
-                                <td className="px-6 py-4 text-center text-sm font-medium text-slate-400">{formatNumber(agency.avgIg)}</td>
-                                <td className="px-6 py-4 text-center text-sm font-medium text-slate-400">{formatNumber(agency.avgTiktok)}</td>
+                                <td className="px-6 py-4 text-center text-sm font-medium text-slate-400">{formatNumber(agency.fb)}</td>
+                                <td className="px-6 py-4 text-center text-sm font-medium text-slate-400">{formatNumber(agency.ig)}</td>
+                                <td className="px-6 py-4 text-center text-sm font-medium text-slate-400">{formatNumber(agency.tiktok)}</td>
                                 <td className="px-6 py-4 text-success font-semibold">{formatPercent(agency.tasa)}</td>
                                 <td className="px-6 py-4 text-slate-400">{formatCurrency(agency.cpl)}</td>
                                 <td className="px-6 py-4">
                                     <div className="flex items-center gap-1 text-accent font-bold">
                                         <Star size={14} fill="currentColor" />
-                                        {agency.avgRating.toFixed(1)}
-                                        <span className="text-[10px] text-slate-500 ml-1">({formatNumber(agency.avgReviews)})</span>
+                                        {agency.rating.toFixed(1)}
+                                        <span className="text-[10px] text-slate-500 ml-1">({formatNumber(agency.reviews)})</span>
                                     </div>
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
+            </div>
+
+            {/* Monthly Breakdown Table */}
+            <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                    <TrendingUp className="text-primary" size={20} />
+                    <h3 className="text-xl font-bold">Detalle de Ventas Mensuales ({filters.anio === 'Todos' ? 'Histórico' : filters.anio})</h3>
+                </div>
+                <div className="glass rounded-2xl overflow-x-auto">
+                    <table className="w-full text-left min-w-[1000px]">
+                        <thead className="bg-slate-900/50">
+                            <tr>
+                                <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Agencia</th>
+                                {MONTHS.map(m => (
+                                    <th key={m} className="px-2 py-3 text-[10px] font-bold text-slate-500 uppercase text-center">{m.substring(0, 3)}</th>
+                                ))}
+                                <th className="px-4 py-3 text-[10px] font-bold text-slate-200 uppercase text-center bg-white/5">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                            {monthlySales.map(agn => (
+                                <tr key={agn.name} className="hover:bg-white/[0.01]">
+                                    <td className="px-4 py-3 text-sm font-bold text-slate-400">{agn.name}</td>
+                                    {agn.months.map((v, i) => (
+                                        <td key={i} className={`px-2 py-3 text-center text-sm ${v > 0 ? 'text-white font-medium' : 'text-slate-700'}`}>
+                                            {v || '-'}
+                                        </td>
+                                    ))}
+                                    <td className="px-4 py-3 text-center text-sm font-bold bg-white/5 text-primary">{agn.total}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </motion.div>
     )
