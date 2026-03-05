@@ -67,7 +67,7 @@ function App() {
                 console.warn('Granular table not found or accessible')
             }
 
-            // Merge and standardize
+            // Merge and standardize with simple deduplication marking
             const merged = [
                 ...(simpleData || []).map(d => ({ ...d, type: 'simple' })),
                 ...(granularData || []).map(d => ({
@@ -81,7 +81,19 @@ function App() {
                 }))
             ]
 
-            setMetrics(merged)
+            // Mark simple records that have corresponding granular records to avoid double counting
+            const granularKeys = new Set((granularData || []).map(d => `${d.agencia_nombre}-${d.mes}-${d.anio}-${d.division}`))
+            const finalMetrics = merged.map(m => {
+                if (m.type === 'simple') {
+                    const key = `${m.agencia_nombre}-${m.mes}-${m.anio}-${m.division}`
+                    if (granularKeys.has(key)) {
+                        return { ...m, isRedundant: true }
+                    }
+                }
+                return m
+            })
+
+            setMetrics(finalMetrics)
         } catch (error) {
             console.error('Error fetching metrics:', error)
         } finally {
@@ -110,23 +122,28 @@ function App() {
         })
     }, [metrics, filters])
 
-    const stats = useMemo(() => {
-        if (!filteredMetrics.length) return null
+    // Metrics for summation (excluding redundant simple records)
+    const activeMetricsForSum = useMemo(() => {
+        return filteredMetrics.filter(m => !m.isRedundant)
+    }, [filteredMetrics])
 
-        const totalInv = filteredMetrics.reduce((acc, m) => {
+    const stats = useMemo(() => {
+        if (!activeMetricsForSum.length) return null
+
+        const totalInv = activeMetricsForSum.reduce((acc, m) => {
             if (m.type === 'granular') return acc + (m.inversion || 0)
             return acc + (m.inv_meta || 0) + (m.inv_google || 0) + (m.inv_otros || 0)
         }, 0)
 
-        const totalLeads = filteredMetrics.reduce((acc, m) => acc + (m.leads_totales || 0), 0)
-        const totalVentas = filteredMetrics.reduce((acc, m) => acc + (m.ventas_cerradas || 0), 0)
-        const totalCitas = filteredMetrics.reduce((acc, m) => acc + (m.citas_agendadas || 0), 0)
+        const totalLeads = activeMetricsForSum.reduce((acc, m) => acc + (m.leads_totales || 0), 0)
+        const totalVentas = activeMetricsForSum.reduce((acc, m) => acc + (m.ventas_cerradas || 0), 0)
+        const totalCitas = activeMetricsForSum.reduce((acc, m) => acc + (m.citas_agendadas || 0), 0)
 
         const cpl = totalLeads > 0 ? totalInv / totalLeads : 0
         const conversion = totalLeads > 0 ? (totalVentas / totalLeads) * 100 : 0
 
         // Proyección de utilidad real si está disponible en granular, si no asume 50k
-        const totalUtilidad = filteredMetrics.reduce((acc, m) => {
+        const totalUtilidad = activeMetricsForSum.reduce((acc, m) => {
             if (m.type === 'granular') return acc + (m.utilidad || 0)
             return acc + (m.ventas_cerradas * 50000)
         }, 0)
@@ -456,19 +473,29 @@ function RankingSection({ metrics, filters, allMetrics }) {
                 }
             }
             const a = agencies[m.agencia_nombre]
-            a.leads += m.leads_totales || 0
-            a.ventas += m.ventas_cerradas || 0
-            a.inv += (m.inv_meta + m.inv_google + m.inv_otros) || 0
 
-            // Snapshot metrics: take the most recent month's data
+            // Only aggregate if NOT a redundant simple record
+            if (!m.isRedundant) {
+                a.leads += m.leads_totales || 0
+                a.ventas += m.ventas_cerradas || 0
+                if (m.type === 'granular') {
+                    a.inv += (m.inversion || 0)
+                } else {
+                    a.inv += (m.inv_meta + m.inv_google + m.inv_otros) || 0
+                }
+            }
+
+            // Snapshot metrics: always come from 'simple' records (where followers/rating are stored)
+            // or take the most recent regardless, but typically social metrics are in 'simple'.
             const timeVal = (m.anio || 0) * 12 + MONTHS.indexOf(m.mes || '')
             if (timeVal > a.latestTime) {
                 a.latestTime = timeVal
-                a.rating = m.google_rating || 0
-                a.reviews = m.google_reviews || 0
-                a.fb = m.fb_followers || 0
-                a.ig = m.ig_followers || 0
-                a.tiktok = m.tiktok_followers || 0
+                // Only update snapshot if it has valid data (preferring simple for social)
+                if (m.google_rating !== undefined) a.rating = m.google_rating || 0
+                if (m.google_reviews !== null) a.reviews = m.google_reviews || 0
+                if (m.fb_followers !== undefined) a.fb = m.fb_followers || 0
+                if (m.ig_followers !== undefined) a.ig = m.ig_followers || 0
+                if (m.tiktok_followers !== undefined) a.tiktok = m.tiktok_followers || 0
             }
         })
 
@@ -490,7 +517,7 @@ function RankingSection({ metrics, filters, allMetrics }) {
 
         uniqueAgencies.forEach(agn => {
             data[agn] = { name: agn, months: Array(12).fill(0), total: 0 }
-            yearMetrics.filter(m => m.agencia_nombre === agn).forEach(m => {
+            yearMetrics.filter(m => m.agencia_nombre === agn && !m.isRedundant).forEach(m => {
                 const mIdx = MONTHS.indexOf(m.mes)
                 if (mIdx !== -1) {
                     data[agn].months[mIdx] += (m.ventas_cerradas || 0)
