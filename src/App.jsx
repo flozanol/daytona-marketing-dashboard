@@ -67,13 +67,26 @@ function App() {
                 console.warn('Granular table not found or accessible')
             }
 
-            // Deduplicate: Keep only the latest record for each key (agency, month, year, division, [segment for granular])
+            // Deduplicate: Keep only the latest record for each key
             const deduplicatedMap = new Map()
+
+            // Helper map to store simple record data (social metrics) by agency-month-year-division
+            const simpleLookup = new Map()
+            simpleData.forEach(d => {
+                const agency = d.agencia_nombre?.trim() || ''
+                const key = `${agency}-${d.mes}-${d.anio}-${d.division}`
+                if (!simpleLookup.has(key) || d.id > simpleLookup.get(key).id) {
+                    simpleLookup.set(key, d)
+                }
+            })
 
             // Process granular data first
             granularData.forEach(d => {
                 const agency = d.agencia_nombre?.trim() || ''
+                const lookupKey = `${agency}-${d.mes}-${d.anio}-${d.division}`
                 const key = `${agency}-${d.mes}-${d.anio}-${d.division}-${d.segmento}-${d.fuente}`
+                const simpleRef = simpleLookup.get(lookupKey)
+
                 // Only keep if newer (assuming higher ID or just replace)
                 if (!deduplicatedMap.has(key) || d.id > deduplicatedMap.get(key).id) {
                     deduplicatedMap.set(key, {
@@ -83,7 +96,12 @@ function App() {
                         inv_total: (d.inversion || 0),
                         leads_totales: d.leads,
                         ventas_cerradas: d.ventas,
-                        citas_agendadas: d.citas_concretadas
+                        citas_agendadas: d.citas_concretadas,
+                        google_rating: simpleRef?.google_rating,
+                        google_reviews: simpleRef?.google_reviews,
+                        fb_followers: simpleRef?.fb_followers,
+                        ig_followers: simpleRef?.ig_followers,
+                        tiktok_followers: simpleRef?.tiktok_followers
                     })
                 }
             })
@@ -412,20 +430,32 @@ function App() {
                                     </div>
                                     <div className="h-[350px]">
                                         <ResponsiveContainer width="100%" height="100%">
-                                            <ComposedChart data={filteredMetrics}>
+                                            <ComposedChart data={activeMetricsForSum}>
                                                 <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
-                                                <XAxis dataKey="agencia_nombre" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
+                                                <XAxis
+                                                    dataKey={filters.agencia === 'Todos' ? 'agencia_nombre' : 'fuente'}
+                                                    stroke="#475569"
+                                                    fontSize={10}
+                                                    tickLine={false}
+                                                    axisLine={false}
+                                                    tickFormatter={(val) => val || 'General'}
+                                                />
                                                 <YAxis yAxisId="left" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
                                                 <YAxis yAxisId="right" orientation="right" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
                                                 <Tooltip
                                                     contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.4)' }}
+                                                    labelFormatter={(value, payload) => {
+                                                        const item = payload[0]?.payload;
+                                                        if (filters.agencia !== 'Todos') return `Fuente: ${value || 'General'}`;
+                                                        return `Agencia: ${value}`;
+                                                    }}
                                                 />
                                                 <Bar yAxisId="left" dataKey="ventas_cerradas" name="Ventas" radius={[4, 4, 0, 0]}>
-                                                    {filteredMetrics.map((entry, index) => (
+                                                    {activeMetricsForSum.map((entry, index) => (
                                                         <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#6366f1' : '#38bdf8'} />
                                                     ))}
                                                 </Bar>
-                                                <Line yAxisId="right" type="monotone" dataKey="google_rating" name="Rating" stroke="#fbbf24" strokeWidth={3} dot={{ r: 4, fill: '#fbbf24' }} />
+                                                <Line yAxisId="right" type="monotone" dataKey="google_rating" name="Rating" stroke="#fbbf24" strokeWidth={3} dot={{ r: 4, fill: '#fbbf24' }} connectNulls />
                                             </ComposedChart>
                                         </ResponsiveContainer>
                                     </div>
