@@ -67,33 +67,42 @@ function App() {
                 console.warn('Granular table not found or accessible')
             }
 
-            // Merge and standardize with simple deduplication marking
-            const merged = [
-                ...(simpleData || []).map(d => ({ ...d, type: 'simple' })),
-                ...(granularData || []).map(d => ({
-                    ...d,
-                    type: 'granular',
-                    // Map granular fields to aggregate fields for dashboard compatibility
-                    inv_total: (d.inversion || 0),
-                    leads_totales: d.leads,
-                    ventas_cerradas: d.ventas,
-                    citas_agendadas: d.citas_concretadas
-                }))
-            ]
+            // Deduplicate: Keep only the latest record for each key (agency, month, year, division, [segment for granular])
+            const deduplicatedMap = new Map()
 
-            // Mark simple records that have corresponding granular records to avoid double counting
-            const granularKeys = new Set((granularData || []).map(d => `${d.agencia_nombre}-${d.mes}-${d.anio}-${d.division}`))
-            const finalMetrics = merged.map(m => {
-                if (m.type === 'simple') {
-                    const key = `${m.agencia_nombre}-${m.mes}-${m.anio}-${m.division}`
-                    if (granularKeys.has(key)) {
-                        return { ...m, isRedundant: true }
-                    }
+            // Process granular data first
+            granularData.forEach(d => {
+                const agency = d.agencia_nombre?.trim() || ''
+                const key = `${agency}-${d.mes}-${d.anio}-${d.division}-${d.segmento}`
+                // Only keep if newer (assuming higher ID or just replace)
+                if (!deduplicatedMap.has(key) || d.id > deduplicatedMap.get(key).id) {
+                    deduplicatedMap.set(key, {
+                        ...d,
+                        agencia_nombre: agency,
+                        type: 'granular',
+                        inv_total: (d.inversion || 0),
+                        leads_totales: d.leads,
+                        ventas_cerradas: d.ventas,
+                        citas_agendadas: d.citas_concretadas
+                    })
                 }
-                return m
             })
 
-            setMetrics(finalMetrics)
+            // Process simple data
+            const granularKeys = new Set(Array.from(deduplicatedMap.values()).map(d => `${d.agencia_nombre}-${d.mes}-${d.anio}-${d.division}`))
+
+            simpleData.forEach(d => {
+                const agency = d.agencia_nombre?.trim() || ''
+                const key = `${agency}-${d.mes}-${d.anio}-${d.division}`
+                // Only keep if not redundant and (not exists or newer)
+                if (!granularKeys.has(key)) {
+                    if (!deduplicatedMap.has(key) || d.id > deduplicatedMap.get(key).id) {
+                        deduplicatedMap.set(key, { ...d, agencia_nombre: agency, type: 'simple' })
+                    }
+                }
+            })
+
+            setMetrics(Array.from(deduplicatedMap.values()))
         } catch (error) {
             console.error('Error fetching metrics:', error)
         } finally {
@@ -122,9 +131,9 @@ function App() {
         })
     }, [metrics, filters])
 
-    // Metrics for summation (excluding redundant simple records)
+    // Metrics for summation: Only 'simple' aggregates or 'Nuevos' segment from granular data
     const activeMetricsForSum = useMemo(() => {
-        return filteredMetrics.filter(m => !m.isRedundant)
+        return filteredMetrics.filter(m => m.type === 'simple' || m.segmento === 'Nuevos')
     }, [filteredMetrics])
 
     const stats = useMemo(() => {
@@ -489,8 +498,8 @@ function RankingSection({ metrics, filters, allMetrics }) {
             }
             const a = agencies[m.agencia_nombre]
 
-            // Only aggregate if NOT a redundant simple record
-            if (!m.isRedundant) {
+            // Only aggregate if segment is 'Nuevos' (or it's a 'simple' record which is already aggregate)
+            if (m.type === 'simple' || m.segmento === 'Nuevos') {
                 a.leads += m.leads_totales || 0
                 a.ventas += m.ventas_cerradas || 0
                 if (m.type === 'granular') {
@@ -532,7 +541,7 @@ function RankingSection({ metrics, filters, allMetrics }) {
 
         uniqueAgencies.forEach(agn => {
             data[agn] = { name: agn, months: Array(12).fill(0), total: 0 }
-            yearMetrics.filter(m => m.agencia_nombre === agn && !m.isRedundant).forEach(m => {
+            yearMetrics.filter(m => m.agencia_nombre === agn && (m.type === 'simple' || m.segmento === 'Nuevos')).forEach(m => {
                 const mIdx = MONTHS.indexOf(m.mes)
                 if (mIdx !== -1) {
                     data[agn].months[mIdx] += (m.ventas_cerradas || 0)
@@ -673,7 +682,11 @@ function EntrySection({ onSaved }) {
         e.preventDefault()
         setSubmitting(true)
         try {
-            const { error } = await supabase.from('marketing_metrics').insert([form])
+            const { error } = await supabase
+                .from('marketing_metrics')
+                .upsert([form], {
+                    onConflict: 'agencia_nombre,mes,anio,division'
+                })
             if (error) throw error
             onSaved()
         } catch (err) {

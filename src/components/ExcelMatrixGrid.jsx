@@ -102,12 +102,14 @@ const ExcelMatrixGrid = ({ onSaved, initialFilters, onBack, onShowHistory }) => 
         setError(null)
         setSuccess(false)
 
+        const cleanedAgencia = agencia.trim()
+
         try {
             // First, delete existing data for this combination to avoid duplicates
             await supabase
                 .from('marketing_source_metrics')
                 .delete()
-                .eq('agencia_nombre', agencia)
+                .eq('agencia_nombre', cleanedAgencia)
                 .eq('division', division)
                 .eq('mes', mes)
                 .eq('anio', anio)
@@ -121,7 +123,7 @@ const ExcelMatrixGrid = ({ onSaved, initialFilters, onBack, onShowHistory }) => 
                         rowsToInsert.push({
                             mes,
                             anio,
-                            agencia_nombre: agencia,
+                            agencia_nombre: cleanedAgencia,
                             division,
                             segmento: seg,
                             fuente: src,
