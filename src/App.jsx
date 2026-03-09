@@ -73,7 +73,7 @@ function App() {
             // Process granular data first
             granularData.forEach(d => {
                 const agency = d.agencia_nombre?.trim() || ''
-                const key = `${agency}-${d.mes}-${d.anio}-${d.division}-${d.segmento}`
+                const key = `${agency}-${d.mes}-${d.anio}-${d.division}-${d.segmento}-${d.fuente}`
                 // Only keep if newer (assuming higher ID or just replace)
                 if (!deduplicatedMap.has(key) || d.id > deduplicatedMap.get(key).id) {
                     deduplicatedMap.set(key, {
