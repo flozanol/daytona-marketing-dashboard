@@ -158,6 +158,7 @@ function App() {
                 agencyLatest[m.agencia_nombre] = {
                     time: timeVal,
                     reviews: m.google_reviews || 0,
+                    rating: m.google_rating || 0,
                     fb: m.fb_followers || 0,
                     ig: m.ig_followers || 0,
                     tiktok: m.tiktok_followers || 0
@@ -170,7 +171,12 @@ function App() {
         const totalIg = Object.values(agencyLatest).reduce((acc, a) => acc + a.ig, 0)
         const totalTiktok = Object.values(agencyLatest).reduce((acc, a) => acc + a.tiktok, 0)
 
-        return { totalInv, totalLeads, totalVentas, totalCitas, cpl, conversion, roi, totalReviews, totalFb, totalIg, totalTiktok }
+        const ratingsWithWeights = Object.values(agencyLatest).filter(a => a.rating > 0)
+        const avgRating = ratingsWithWeights.length > 0
+            ? ratingsWithWeights.reduce((acc, a) => acc + a.rating, 0) / ratingsWithWeights.length
+            : 0
+
+        return { totalInv, totalLeads, totalVentas, totalCitas, cpl, conversion, roi, totalReviews, totalFb, totalIg, totalTiktok, avgRating }
     }, [filteredMetrics])
 
     // --- Components ---
@@ -299,7 +305,7 @@ function App() {
                             </div>
 
                             {/* Community Stats */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
                                 <div className="stat-card flex items-center gap-4 py-4">
                                     <div className="w-12 h-12 bg-blue-600/20 rounded-xl flex items-center justify-center text-blue-500">
                                         <Facebook size={24} />
@@ -321,6 +327,15 @@ function App() {
                                 <div className="stat-card flex items-center gap-4 py-4">
                                     <div className="w-12 h-12 bg-amber-500/20 rounded-xl flex items-center justify-center text-amber-500">
                                         <Star size={24} fill="currentColor" />
+                                    </div>
+                                    <div>
+                                        <div className="text-2xl font-bold">{stats?.avgRating?.toFixed(1) || '0.0'}</div>
+                                        <div className="text-xs text-slate-500 uppercase font-bold tracking-widest">Rating Google</div>
+                                    </div>
+                                </div>
+                                <div className="stat-card flex items-center gap-4 py-4">
+                                    <div className="w-12 h-12 bg-amber-500/20 rounded-xl flex items-center justify-center text-amber-500">
+                                        <Star size={24} />
                                     </div>
                                     <div>
                                         <div className="text-2xl font-bold">{formatNumber(stats?.totalReviews || 0)}</div>
