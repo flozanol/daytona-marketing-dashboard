@@ -434,7 +434,7 @@ function App() {
                         </motion.div>
                     )}
 
-                    {activeSection === SECTIONS.RANKING && <RankingSection metrics={filteredMetrics} filters={filters} allMetrics={metrics} />}
+                    {activeSection === SECTIONS.RANKING && <RankingSection metrics={filteredMetrics} filters={filters} allMetrics={metrics} setFilters={setFilters} />}
                     {activeSection === SECTIONS.ENTRY && <EntrySection onSaved={() => { fetchMetrics(); setActiveSection(SECTIONS.DASHBOARD); }} />}
                     {activeSection === SECTIONS.GRANULAR && (
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -489,7 +489,7 @@ function StatCard({ label, value, trend, positive, icon: Icon, desc }) {
     )
 }
 
-function RankingSection({ metrics, filters, allMetrics }) {
+function RankingSection({ metrics, filters, allMetrics, setFilters }) {
     const ranking = useMemo(() => {
         // Group by agency
         const agencies = {}
@@ -568,18 +568,29 @@ function RankingSection({ metrics, filters, allMetrics }) {
 
     return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
                 <div className="flex items-center gap-4">
-                    <Trophy className="text-accent" size={32} />
+                    <div className="p-3 bg-accent/20 rounded-2xl">
+                        <Trophy className="text-accent" size={32} />
+                    </div>
                     <div>
-                        <h2 className="text-2xl">Ranking de Rendimiento</h2>
-                        <p className="text-slate-500">
+                        <h2 className="text-3xl font-bold tracking-tight">Ranking de Rendimiento</h2>
+                        <p className="text-slate-500 font-medium">
                             {filters.mes === 'Todos' ? `Acumulado ${filters.anio === 'Todos' ? 'Histórico' : filters.anio}` : `Vista de ${filters.mes} ${filters.anio}`}
                         </p>
                     </div>
                 </div>
-                <div className="px-4 py-2 bg-accent/10 border border-accent/20 rounded-xl">
-                    <span className="text-accent font-bold text-sm">Rating y Redes: Dato más reciente</span>
+
+                <div className="flex items-center gap-3 bg-slate-900/50 p-1.5 rounded-2xl border border-white/5">
+                    {DIVISIONS.map(d => (
+                        <button
+                            key={d}
+                            onClick={() => setFilters(prev => ({ ...prev, division: d }))}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${filters.division === d ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                            {d}
+                        </button>
+                    ))}
                 </div>
             </div>
 
@@ -665,6 +676,57 @@ function RankingSection({ metrics, filters, allMetrics }) {
                             ))}
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            {/* Sales Visualization Chart */}
+            <div className="space-y-6">
+                <div className="flex items-center gap-2">
+                    <TrendingUp className="text-accent" size={20} />
+                    <h3 className="text-xl font-bold">Comparativa Visual de Ventas</h3>
+                </div>
+                <div className="glass p-8 rounded-3xl h-[450px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={ranking} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff005" vertical={false} />
+                            <XAxis
+                                dataKey="name"
+                                stroke="#94a3b8"
+                                fontSize={10}
+                                tickLine={false}
+                                axisLine={false}
+                                angle={-45}
+                                textAnchor="end"
+                                interval={0}
+                            />
+                            <YAxis
+                                stroke="#94a3b8"
+                                fontSize={10}
+                                tickLine={false}
+                                axisLine={false}
+                            />
+                            <Tooltip
+                                cursor={{ fill: '#ffffff05' }}
+                                contentStyle={{
+                                    backgroundColor: '#0f172a',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    borderRadius: '16px',
+                                    padding: '12px'
+                                }}
+                            />
+                            <Bar
+                                dataKey="ventas"
+                                name="Ventas Nuevos"
+                                radius={[6, 6, 0, 0]}
+                                barSize={40}
+                            >
+                                {ranking.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={index === 0 ? '#e11d48' : '#6366f1'} />
+                                ))}
+                                <LabelList dataKey="ventas" position="top" fill="#94a3b8" fontSize={12} offset={10} />
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
                 </div>
             </div>
         </motion.div>
