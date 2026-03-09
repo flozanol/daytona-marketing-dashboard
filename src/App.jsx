@@ -89,16 +89,18 @@ function App() {
             })
 
             // Process simple data
-            const granularKeys = new Set(Array.from(deduplicatedMap.values()).map(d => `${d.agencia_nombre}-${d.mes}-${d.anio}-${d.division}`))
-
             simpleData.forEach(d => {
                 const agency = d.agencia_nombre?.trim() || ''
                 const key = `${agency}-${d.mes}-${d.anio}-${d.division}`
-                // Only keep if not redundant and (not exists or newer)
-                if (!granularKeys.has(key)) {
-                    if (!deduplicatedMap.has(key) || d.id > deduplicatedMap.get(key).id) {
-                        deduplicatedMap.set(key, { ...d, agencia_nombre: agency, type: 'simple' })
-                    }
+                const simpleKey = `simple-${key}`
+
+                if (!deduplicatedMap.has(simpleKey) || d.id > deduplicatedMap.get(simpleKey).id) {
+                    deduplicatedMap.set(simpleKey, {
+                        ...d,
+                        agencia_nombre: agency,
+                        type: 'simple',
+                        isRedundant: granularKeys.has(key)
+                    })
                 }
             })
 
@@ -131,9 +133,12 @@ function App() {
         })
     }, [metrics, filters])
 
-    // Metrics for summation: Only 'simple' aggregates or 'Nuevos' segment from granular data
+    // Metrics for summation: Only non-redundant 'simple' records or 'Nuevos' segment from granular data
     const activeMetricsForSum = useMemo(() => {
-        return filteredMetrics.filter(m => m.type === 'simple' || m.segmento === 'Nuevos')
+        return filteredMetrics.filter(m => {
+            if (m.type === 'simple') return !m.isRedundant
+            return m.segmento === 'Nuevos'
+        })
     }, [filteredMetrics])
 
     const stats = useMemo(() => {
@@ -163,14 +168,19 @@ function App() {
         const agencyLatest = {}
         filteredMetrics.forEach(m => {
             const timeVal = (m.anio || 0) * 12 + MONTHS.indexOf(m.mes || '')
-            if (!agencyLatest[m.agencia_nombre] || timeVal > agencyLatest[m.agencia_nombre].time) {
-                agencyLatest[m.agencia_nombre] = {
-                    time: timeVal,
-                    reviews: m.google_reviews || 0,
-                    rating: m.google_rating || 0,
-                    fb: m.fb_followers || 0,
-                    ig: m.ig_followers || 0,
-                    tiktok: m.tiktok_followers || 0
+            // Social metrics are mostly in 'simple' records. Prefer those.
+            if (!agencyLatest[m.agencia_nombre] || timeVal > agencyLatest[m.agencia_nombre].time || (timeVal === agencyLatest[m.agencia_nombre].time && m.type === 'simple')) {
+                // If it's a simple record OR it has some social data (to be safe)
+                if (m.type === 'simple' || m.google_rating) {
+                    agencyLatest[m.agencia_nombre] = {
+                        time: timeVal,
+                        reviews: m.google_reviews || 0,
+                        rating: m.google_rating || 0,
+                        fb: m.fb_followers || 0,
+                        ig: m.ig_followers || 0,
+                        tiktok: m.tiktok_followers || 0,
+                        isSimple: m.type === 'simple'
+                    }
                 }
             }
         })
@@ -498,8 +508,8 @@ function RankingSection({ metrics, filters, allMetrics }) {
             }
             const a = agencies[m.agencia_nombre]
 
-            // Only aggregate if segment is 'Nuevos' (or it's a 'simple' record which is already aggregate)
-            if (m.type === 'simple' || m.segmento === 'Nuevos') {
+            // Only aggregate if segment is 'Nuevos' (for granular) or it's a non-redundant 'simple' record
+            if ((m.type === 'simple' && !m.isRedundant) || m.segmento === 'Nuevos') {
                 a.leads += m.leads_totales || 0
                 a.ventas += m.ventas_cerradas || 0
                 if (m.type === 'granular') {
@@ -509,17 +519,18 @@ function RankingSection({ metrics, filters, allMetrics }) {
                 }
             }
 
-            // Snapshot metrics: always come from 'simple' records (where followers/rating are stored)
-            // or take the most recent regardless, but typically social metrics are in 'simple'.
+            // Snapshot metrics: prefer 'simple' records where followers/rating are stored.
             const timeVal = (m.anio || 0) * 12 + MONTHS.indexOf(m.mes || '')
-            if (timeVal > a.latestTime) {
+            if (timeVal > a.latestTime || (timeVal === a.latestTime && m.type === 'simple')) {
                 a.latestTime = timeVal
                 // Only update snapshot if it has valid data (preferring simple for social)
-                if (m.google_rating !== undefined) a.rating = m.google_rating || 0
-                if (m.google_reviews !== null) a.reviews = m.google_reviews || 0
-                if (m.fb_followers !== undefined) a.fb = m.fb_followers || 0
-                if (m.ig_followers !== undefined) a.ig = m.ig_followers || 0
-                if (m.tiktok_followers !== undefined) a.tiktok = m.tiktok_followers || 0
+                if (m.type === 'simple' || m.google_rating) {
+                    if (m.google_rating !== undefined) a.rating = m.google_rating || 0
+                    if (m.google_reviews !== null) a.reviews = m.google_reviews || 0
+                    if (m.fb_followers !== undefined) a.fb = m.fb_followers || 0
+                    if (m.ig_followers !== undefined) a.ig = m.ig_followers || 0
+                    if (m.tiktok_followers !== undefined) a.tiktok = m.tiktok_followers || 0
+                }
             }
         })
 
@@ -541,7 +552,7 @@ function RankingSection({ metrics, filters, allMetrics }) {
 
         uniqueAgencies.forEach(agn => {
             data[agn] = { name: agn, months: Array(12).fill(0), total: 0 }
-            yearMetrics.filter(m => m.agencia_nombre === agn && (m.type === 'simple' || m.segmento === 'Nuevos')).forEach(m => {
+            yearMetrics.filter(m => m.agencia_nombre === agn && ((m.type === 'simple' && !m.isRedundant) || m.segmento === 'Nuevos')).forEach(m => {
                 const mIdx = MONTHS.indexOf(m.mes)
                 if (mIdx !== -1) {
                     data[agn].months[mIdx] += (m.ventas_cerradas || 0)
