@@ -89,6 +89,8 @@ function App() {
             })
 
             // Process simple data
+            const granularKeys = new Set(Array.from(deduplicatedMap.values()).map(d => `${d.agencia_nombre}-${d.mes}-${d.anio}-${d.division}`))
+
             simpleData.forEach(d => {
                 const agency = d.agencia_nombre?.trim() || ''
                 const key = `${agency}-${d.mes}-${d.anio}-${d.division}`
