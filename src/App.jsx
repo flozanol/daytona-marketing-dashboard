@@ -32,6 +32,13 @@ const LLANTAS_BRANCHES = [
     'Llanticredit Pedregal', 'Llanticredit Perisur', 'Llanticredit Cuajimalpa'
 ]
 
+const AGENCIES_LIST = [
+    'Acura Interlomas', 'GWM Iztapalapa', 'GWM Morelos',
+    'Honda Cuajimalpa', 'Honda Interlomas', 'Honda Motos',
+    'Kia Interlomas', 'Kia Iztapalapa', 'Llanticredit',
+    'MG Cuajimalpa', 'MG Interlomas', 'MG Iztapalapa', 'MG Santa Fe'
+]
+
 const SECTIONS = {
     DASHBOARD: 'dashboard',
     ENTRY: 'entry',
@@ -779,7 +786,7 @@ function EntrySection({ onSaved }) {
         mes: MONTHS[new Date().getMonth()],
         anio: new Date().getFullYear(),
         division: 'Autos',
-        agencia_nombre: '',
+        agencia_nombre: AGENCIES_LIST[0],
         inv_meta: 0,
         inv_google: 0,
         inv_otros: 0,
@@ -864,7 +871,13 @@ function EntrySection({ onSaved }) {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <FormField label="Nombre de la Agencia" value={form.agencia_nombre} onChange={v => setForm({ ...form, agencia_nombre: v })} placeholder="Ej: Daytona CDMX Central" />
+                        <FormField
+                            label="Nombre de la Agencia"
+                            type="select"
+                            value={form.agencia_nombre}
+                            onChange={v => setForm({ ...form, agencia_nombre: v })}
+                            options={AGENCIES_LIST}
+                        />
                         {(form.division !== 'Motos' && form.division !== 'Llantas') && (
                             <FormField label="Google Rating Actual" type="number" step="0.1" max="5" value={form.google_rating} onChange={v => setForm({ ...form, google_rating: parseFloat(v) })} />
                         )}

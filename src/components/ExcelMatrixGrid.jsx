@@ -11,10 +11,17 @@ const SOURCES = [
 ]
 const ROWS = ['Leads', 'Contactados', 'Citas concretadas', 'Ventas', 'Inversión', 'Utilidad generada']
 
+const AGENCIES_LIST = [
+    'Acura Interlomas', 'GWM Iztapalapa', 'GWM Morelos',
+    'Honda Cuajimalpa', 'Honda Interlomas', 'Honda Motos',
+    'Kia Interlomas', 'Kia Iztapalapa', 'Llanticredit',
+    'MG Cuajimalpa', 'MG Interlomas', 'MG Iztapalapa', 'MG Santa Fe'
+]
+
 const ExcelMatrixGrid = ({ onSaved, initialFilters, onBack, onShowHistory }) => {
     const [mes, setMes] = useState(initialFilters?.mes || 'Marzo')
     const [anio, setAnio] = useState(initialFilters?.anio || new Date().getFullYear())
-    const [agencia, setAgencia] = useState(initialFilters?.agencia_nombre || 'Daytona Polanco')
+    const [agencia, setAgencia] = useState(initialFilters?.agencia_nombre || AGENCIES_LIST[0])
     const [division, setDivision] = useState(initialFilters?.division || 'Autos')
     const [loading, setLoading] = useState(false)
     const [fetching, setFetching] = useState(false)
@@ -187,11 +194,13 @@ const ExcelMatrixGrid = ({ onSaved, initialFilters, onBack, onShowHistory }) => 
             <div className="glass p-6 rounded-2xl flex flex-wrap gap-6 items-end">
                 <div className="flex flex-col gap-2">
                     <label className="text-xs font-bold text-slate-500 uppercase">Agencia</label>
-                    <input
+                    <select
                         className="input-field py-2"
                         value={agencia}
                         onChange={e => setAgencia(e.target.value)}
-                    />
+                    >
+                        {AGENCIES_LIST.map(a => <option key={a}>{a}</option>)}
+                    </select>
                 </div>
                 <div className="flex flex-col gap-2">
                     <label className="text-xs font-bold text-slate-500 uppercase">División</label>
