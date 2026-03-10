@@ -19,7 +19,7 @@ const formatCurrency = (val) => new Intl.NumberFormat('es-MX', { style: 'currenc
 const formatNumber = (val) => new Intl.NumberFormat('es-MX').format(val)
 const formatPercent = (val) => `${val.toFixed(1)}%`
 
-const DIVISIONS = ['Todos', 'Autos', 'Motos', 'Llantas']
+const DIVISIONS = ['Todos', 'Autos']
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
 const MOTOS_BRANCHES = [
@@ -31,6 +31,8 @@ const MOTOS_BRANCHES = [
 const LLANTAS_BRANCHES = [
     'Llanticredit Pedregal', 'Llanticredit Perisur', 'Llanticredit Cuajimalpa'
 ]
+
+const NON_PERFORMANCE_AGENCIES = [...MOTOS_BRANCHES, ...LLANTAS_BRANCHES, 'Honda Motos', 'Llanticredit']
 
 const AGENCIES_LIST = [
     'Acura Interlomas', 'GWM Iztapalapa', 'GWM Morelos',
@@ -151,7 +153,9 @@ function App() {
 
     // --- BI Logic ---
     const agencies = useMemo(() => {
-        const uniqueAgencies = [...new Set(metrics.map(m => m.agencia_nombre))].filter(Boolean).sort()
+        const uniqueAgencies = [...new Set(metrics.map(m => m.agencia_nombre))]
+            .filter(a => a && !NON_PERFORMANCE_AGENCIES.includes(a))
+            .sort()
         return ['Todos', ...uniqueAgencies]
     }, [metrics])
 
@@ -171,8 +175,10 @@ function App() {
     }, [metrics, filters])
 
     // Metrics for summation: Only non-redundant 'simple' records or 'Nuevos' segment from granular data
+    // ALSO: Filter out motorcycle and tire branches for performance metrics
     const activeMetricsForSum = useMemo(() => {
         return filteredMetrics.filter(m => {
+            if (NON_PERFORMANCE_AGENCIES.includes(m.agencia_nombre)) return false;
             if (m.type === 'simple') return !m.isRedundant
             return m.segmento === 'Nuevos'
         })
@@ -541,6 +547,7 @@ function RankingSection({ metrics, filters, allMetrics, setFilters }) {
         // Group by agency
         const agencies = {}
         metrics.forEach(m => {
+            if (NON_PERFORMANCE_AGENCIES.includes(m.agencia_nombre)) return;
             if (!agencies[m.agencia_nombre]) {
                 agencies[m.agencia_nombre] = {
                     name: m.agencia_nombre,
@@ -597,7 +604,9 @@ function RankingSection({ metrics, filters, allMetrics, setFilters }) {
         // Re-calculate for the filtered year (or all if year is Todos)
         const yearMetrics = allMetrics.filter(m => filters.anio === 'Todos' || m.anio === parseInt(filters.anio))
         const data = {}
-        const uniqueAgencies = [...new Set(yearMetrics.map(m => m.agencia_nombre))].filter(Boolean).sort()
+        const uniqueAgencies = [...new Set(yearMetrics.map(m => m.agencia_nombre))]
+            .filter(a => a && !NON_PERFORMANCE_AGENCIES.includes(a))
+            .sort()
 
         uniqueAgencies.forEach(agn => {
             data[agn] = { name: agn, months: Array(12).fill(0), total: 0 }
