@@ -22,6 +22,16 @@ const formatPercent = (val) => `${val.toFixed(1)}%`
 const DIVISIONS = ['Todos', 'Autos', 'Motos', 'Llantas']
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
+const MOTOS_BRANCHES = [
+    'Tecamachalco', 'Iztapalapa', 'Ecatepec', 'Satélite',
+    'Satélite Power House', 'Tlalnepantla', 'Cuernavaca',
+    'Cuautla', 'Atlixco'
+]
+
+const LLANTAS_BRANCHES = [
+    'Llanticredit Pedregal', 'Llanticredit Perisur', 'Llanticredit Cuajimalpa'
+]
+
 const SECTIONS = {
     DASHBOARD: 'dashboard',
     ENTRY: 'entry',
@@ -787,9 +797,45 @@ function EntrySection({ onSaved }) {
         e.preventDefault()
         setSubmitting(true)
         try {
+            const { branch_data, ...mainRecord } = form
+
+            // If it's Motos or Llantas, we clear the main record's google metrics 
+            // to avoid duplicates, as they are now in branch records.
+            if (form.division === 'Motos' || form.division === 'Llantas') {
+                mainRecord.google_rating = 0
+                mainRecord.google_reviews = 0
+            }
+
+            const recordsToUpsert = [mainRecord]
+
+            if (branch_data && (form.division === 'Motos' || form.division === 'Llantas')) {
+                Object.entries(branch_data).forEach(([branchName, data]) => {
+                    if (data.rating > 0 || data.reviews > 0) {
+                        recordsToUpsert.push({
+                            agencia_nombre: branchName,
+                            mes: form.mes,
+                            anio: form.anio,
+                            division: form.division,
+                            google_rating: data.rating || 0,
+                            google_reviews: data.reviews || 0,
+                            // Ensure other fields are neutral for branch-only records
+                            inv_meta: 0,
+                            inv_google: 0,
+                            inv_otros: 0,
+                            leads_totales: 0,
+                            citas_agendadas: 0,
+                            ventas_cerradas: 0,
+                            fb_followers: 0,
+                            ig_followers: 0,
+                            tiktok_followers: 0
+                        })
+                    }
+                })
+            }
+
             const { error } = await supabase
                 .from('marketing_metrics')
-                .upsert([form], {
+                .upsert(recordsToUpsert, {
                     onConflict: 'agencia_nombre,mes,anio,division'
                 })
             if (error) throw error
@@ -819,7 +865,9 @@ function EntrySection({ onSaved }) {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <FormField label="Nombre de la Agencia" value={form.agencia_nombre} onChange={v => setForm({ ...form, agencia_nombre: v })} placeholder="Ej: Daytona CDMX Central" />
-                        <FormField label="Google Rating Actual" type="number" step="0.1" max="5" value={form.google_rating} onChange={v => setForm({ ...form, google_rating: parseFloat(v) })} />
+                        {(form.division !== 'Motos' && form.division !== 'Llantas') && (
+                            <FormField label="Google Rating Actual" type="number" step="0.1" max="5" value={form.google_rating} onChange={v => setForm({ ...form, google_rating: parseFloat(v) })} />
+                        )}
                     </div>
 
                     <div className="p-6 bg-slate-900/50 rounded-2xl border border-white/5">
@@ -842,13 +890,58 @@ function EntrySection({ onSaved }) {
 
                     <div className="p-6 bg-slate-900/50 rounded-2xl border border-white/5">
                         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">Comunidad y Reseñas</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <FormField label="Reseñas Google" type="number" value={form.google_reviews} onChange={v => setForm({ ...form, google_reviews: parseInt(v) })} />
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {(form.division !== 'Motos' && form.division !== 'Llantas') && (
+                                <FormField label="Reseñas Google" type="number" value={form.google_reviews} onChange={v => setForm({ ...form, google_reviews: parseInt(v) })} />
+                            )}
                             <FormField label="Followers Facebook" type="number" value={form.fb_followers} onChange={v => setForm({ ...form, fb_followers: parseInt(v) })} />
                             <FormField label="Followers Instagram" type="number" value={form.ig_followers} onChange={v => setForm({ ...form, ig_followers: parseInt(v) })} />
                             <FormField label="Followers TikTok" type="number" value={form.tiktok_followers} onChange={v => setForm({ ...form, tiktok_followers: parseInt(v) })} />
                         </div>
                     </div>
+
+                    {(form.division === 'Motos' || form.division === 'Llantas') && (
+                        <div className="p-6 bg-slate-900/50 rounded-2xl border border-primary/20 shadow-xl shadow-primary/5">
+                            <div className="mb-6">
+                                <h3 className="text-sm font-bold text-primary uppercase tracking-widest">Google Ratings por Sucursal</h3>
+                                <p className="text-xs text-slate-500 mt-1">Ingrese el rating y número de reseñas para cada ubicación física.</p>
+                            </div>
+
+                            <div className="space-y-4">
+                                {(form.division === 'Motos' ? MOTOS_BRANCHES : LLANTAS_BRANCHES).map(branch => (
+                                    <div key={branch} className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-slate-950/50 rounded-xl border border-white/5 items-center">
+                                        <div className="text-sm font-bold text-slate-300">{branch}</div>
+                                        <FormField
+                                            label="Rating"
+                                            type="number"
+                                            step="0.1"
+                                            max="5"
+                                            value={form.branch_data?.[branch]?.rating || 4.5}
+                                            onChange={v => setForm({
+                                                ...form,
+                                                branch_data: {
+                                                    ...form.branch_data,
+                                                    [branch]: { ...form.branch_data?.[branch], rating: parseFloat(v) }
+                                                }
+                                            })}
+                                        />
+                                        <FormField
+                                            label="Reseñas"
+                                            type="number"
+                                            value={form.branch_data?.[branch]?.reviews || 0}
+                                            onChange={v => setForm({
+                                                ...form,
+                                                branch_data: {
+                                                    ...form.branch_data,
+                                                    [branch]: { ...form.branch_data?.[branch], reviews: parseInt(v) }
+                                                }
+                                            })}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     <div className="flex justify-end gap-4">
                         <button type="submit" disabled={submitting} className="btn-primary px-8 py-3 rounded-xl font-bold text-lg disabled:opacity-50">
